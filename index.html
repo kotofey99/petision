@@ -23,19 +23,36 @@
       text-align: center;
       color: #007BFF;
       text-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
+      position: relative;
+      margin-bottom: 0;
+    }
+    .subtitle {
+      font-size: 12px;
+      text-align: center;
+      margin-top: 4px;
+    }
+    .subtitle .red {
+      color: red;
+      margin-right: 10px;
+      font-weight: bold;
+    }
+    .subtitle .blue {
+      color: blue;
+      font-weight: bold;
     }
     .tabs {
       display: flex;
       justify-content: center;
       margin-bottom: 20px;
+      gap: 10px;
     }
     .tab {
       padding: 10px 20px;
-      margin: 0 10px;
       cursor: pointer;
       background: #ddd;
       border-radius: 5px;
       transition: 0.3s;
+      user-select: none;
     }
     .tab:hover {
       background-color: #007BFF;
@@ -74,7 +91,12 @@
       cursor: pointer;
       transition: 0.3s ease;
     }
-    button:hover {
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    button:hover:not(:disabled) {
       background: #0056b3;
       transform: scale(1.05);
     }
@@ -101,28 +123,102 @@
       color: red;
       font-size: 14px;
     }
+    label.checkbox-label {
+      font-size: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #toast {
+      visibility: hidden;
+      min-width: 250px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 8px;
+      padding: 16px;
+      position: fixed;
+      left: 50%;
+      bottom: 30px;
+      font-size: 17px;
+      transform: translateX(-50%);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.5s, visibility 0.5s;
+    }
+    #toast.show {
+      visibility: visible;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Петиции за вайп</h1>
+    <div class="subtitle">
+      <span class="red">гос</span><span class="blue">услуги</span>
+    </div>
+
     <div class="tabs">
       <div class="tab active" onclick="showTab('create')">Создать петицию</div>
       <div class="tab" onclick="showTab('view')">Посмотреть петиции</div>
+      <div class="tab" onclick="showTab('evidence')">Доказательства</div>
     </div>
+
     <div id="create" class="tab-content active">
       <form id="petitionForm">
         <input type="text" id="nickname" placeholder="Ваш ник" required>
         <input type="email" id="email" placeholder="Ваш email" required>
         <div id="emailError" class="error"></div>
         <textarea id="message" placeholder="Я за вайп..." required></textarea>
-        <button type="submit">Отправить петицию</button>
+
+        <label class="checkbox-label">
+          <input type="checkbox" id="agreeCheckbox">
+          Вы согласны, что на сервере мы подпишем за вас книжку от вашего лица, используя все данные, кроме почты.
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" id="confirmAccountCheckbox">
+          Чтобы мы удостоверились, что вы действительно тот человек, чей ник был выписан в данную петицию, вы должны отправить фото доказательство, по которому можно будет понять, что у вас есть доступ к аккаунту дискорд с ролью игрок ванилы.
+        </label>
+
+        <!-- Новые чекбоксы -->
+        <label class="checkbox-label">
+          <input type="checkbox" id="humanCheckbox">
+          Вы человек?
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="hobbyCheckbox">
+          У вас есть хобби?
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="foodCheckbox">
+          Любимая еда?
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="ageCheckbox">
+          Вам не 16 лет навсегда?
+        </label>
+
+        <button type="submit" id="submitButton" disabled>Отправить петицию</button>
       </form>
     </div>
+
     <div id="view" class="tab-content">
       <div class="petition-list" id="petitionList"></div>
     </div>
+
+    <div id="evidence" class="tab-content">
+      <form id="evidenceForm">
+        <input type="text" id="evidenceNickname" placeholder="Ваш ник" required>
+        <input type="url" id="evidenceLink" placeholder="Ссылка на доказательство (Imgur, Postimages и т.п.)" required pattern="https?://.+">
+        <button type="submit" id="submitEvidenceButton">Отправить доказательство</button>
+      </form>
+      <div id="evidenceList" style="margin-top:20px;"></div>
+    </div>
   </div>
+
+  <div id="toast"></div>
 
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -147,6 +243,7 @@
       document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
       document.getElementById(tabId).classList.add('active');
       if (tabId === 'view') displayPetitions();
+      if (tabId === 'evidence') displayEvidences();
     };
 
     function isValidEmail(email) {
@@ -154,11 +251,31 @@
       return emailRegex.test(email);
     }
 
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'show';
+      setTimeout(() => {
+        toast.className = toast.className.replace('show', '');
+      }, 3000);
+    }
+
+    const submitButton = document.getElementById('submitButton');
+    const agreeCheckbox = document.getElementById('agreeCheckbox');
+    const confirmAccountCheckbox = document.getElementById('confirmAccountCheckbox');
+
+    function updateButtonState() {
+      submitButton.disabled = !(agreeCheckbox.checked && confirmAccountCheckbox.checked);
+    }
+    agreeCheckbox.addEventListener('change', updateButtonState);
+    confirmAccountCheckbox.addEventListener('change', updateButtonState);
+    updateButtonState();
+
     document.getElementById('petitionForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-      const nickname = document.getElementById('nickname').value;
-      const email = document.getElementById('email').value;
-      const message = document.getElementById('message').value;
+      const nickname = document.getElementById('nickname').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const message = document.getElementById('message').value.trim();
       const emailError = document.getElementById('emailError');
 
       if (!isValidEmail(email)) {
@@ -168,16 +285,22 @@
         emailError.textContent = '';
       }
 
+      if (!(agreeCheckbox.checked && confirmAccountCheckbox.checked)) {
+        showToast('Пожалуйста, подтвердите все условия перед отправкой.');
+        return;
+      }
+
       const date = new Date().toLocaleString('ru-RU');
       const petition = { nickname, email, message, date };
 
       try {
         await push(ref(database, 'petitions'), petition);
-        alert('Петиция успешно отправлена!');
+        showToast('✅ Петиция успешно отправлена!');
         this.reset();
+        updateButtonState();
       } catch (error) {
         console.error('Ошибка при отправке петиции:', error);
-        alert('Ошибка при отправке петиции: ' + error.message);
+        showToast('Ошибка при отправке петиции: ' + error.message);
       }
     });
 
@@ -200,15 +323,72 @@
             petitionItem.classList.add('petition-item');
             petitionItem.innerHTML = `
               <strong>${petition.nickname}</strong>
-              <em style="font-size: 0.85em; color: #666;"> (${petition.date})</em><br>
-              ${petition.message}
+              <em style="font-size: 0.85em; color: #666;">(${petition.date})</em><br/>
+              <p>${petition.message.replace(/\n/g, '<br>')}</p>
             `;
             petitionList.appendChild(petitionItem);
           });
-        }, { onlyOnce: false });
+        });
       } catch (error) {
-        console.error('Ошибка загрузки петиций:', error);
-        petitionList.innerHTML = '<p>Ошибка загрузки петиций: ' + error.message + '</p>';
+        console.error(error);
+        petitionList.innerHTML = `<p>Ошибка при загрузке петиций: ${error.message}</p>`;
+      }
+    }
+
+    // --- Доказательства ---
+    document.getElementById('evidenceForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const nickname = document.getElementById('evidenceNickname').value.trim();
+      const link = document.getElementById('evidenceLink').value.trim();
+
+      if (!nickname || !link) {
+        showToast('Пожалуйста, заполните все поля');
+        return;
+      }
+      if (!/^https?:\/\/.+/.test(link)) {
+        showToast('Введите корректную ссылку');
+        return;
+      }
+
+      try {
+        await push(ref(database, 'evidences'), { nickname, link, date: new Date().toLocaleString('ru-RU') });
+        showToast('✅ Доказательство успешно отправлено!');
+        this.reset();
+        displayEvidences();
+      } catch (error) {
+        console.error(error);
+        showToast('Ошибка при отправке доказательства: ' + error.message);
+      }
+    });
+
+    function displayEvidences() {
+      const evidenceList = document.getElementById('evidenceList');
+      evidenceList.innerHTML = '';
+
+      try {
+        onValue(ref(database, 'evidences'), (snapshot) => {
+          evidenceList.innerHTML = '';
+          const evidences = snapshot.val();
+
+          if (!evidences) {
+            evidenceList.innerHTML = '<p>Доказательств пока нет.</p>';
+            return;
+          }
+
+          Object.values(evidences).forEach(evidence => {
+            const item = document.createElement('div');
+            item.classList.add('petition-item');
+            item.innerHTML = `
+              <strong>${evidence.nickname}</strong>
+              <em style="font-size: 0.85em; color: #666;">(${evidence.date})</em><br/>
+              <a href="${evidence.link}" target="_blank" rel="noopener noreferrer">${evidence.link}</a>
+            `;
+            evidenceList.appendChild(item);
+          });
+        });
+      } catch (error) {
+        console.error(error);
+        evidenceList.innerHTML = `<p>Ошибка при загрузке доказательств: ${error.message}</p>`;
       }
     }
   </script>
