@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Петиции за вайп</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+MAX_WIDTH: 800px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            margin: 0 10px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 5px;
+        }
+        .tab.active {
+            background: #007BFF;
+            color: #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        input, textarea {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px;
+            background: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .petition-list {
+            margin-top: 20px;
+        }
+        .petition-item {
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        .petition-item:last-child {
+            border-bottom: none;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Петиции за вайп</h1>
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('create')">Создать петицию</div>
+            <div class="tab" onclick="showTab('view')">Посмотреть петиции</div>
+        </div>
+        <div id="create" class="tab-content active">
+            <form id="petitionForm">
+                <input type="text" id="nickname" placeholder="Ваш ник" required>
+                <input type="email" id="email" placeholder="Ваш email" required>
+                <div id="emailError" class="error"></div>
+                <textarea id="message" placeholder="Я за вайп..." required></textarea>
+                <button type="submit">Отправить петицию</button>
+            </form>
+        </div>
+        <div id="view" class="tab-content">
+            <div class="petition-list" id="petitionList"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (модульная версия) -->
+    <script type="module">
+        // Импорт Firebase SDK
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getDatabase, ref, push, onValue } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+        // Конфигурация Firebase (замените на ваши данные из Firebase Console)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOuHTY07v_Jwb0PkA4rO6bHSLz_VxK1SM",
+            authDomain: "wipedatabase.firebaseapp.com",
+            databaseURL: "https://wipedatabase-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "wipedatabase",
+            storageBucket: "wipedatabase.firebasestorage.app",
+            messagingSenderId: "677692438082",
+            appId: "1:677692438082:web:c6ae096397bb054c295fdb"
+        };
+
+        // Инициализация Firebase
+        try {
+            const app = initializeApp(firebaseConfig);
+            const database = getDatabase(app);
+
+            // Переключение вкладок
+            function showTab(tabId) {
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+                if (tabId === 'view') {
+                    displayPetitions();
+                }
+            }
+
+            // Проверка валидности email
+            function isValidEmail(email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+            }
+
+            // Сохранение петиции
+            document.getElementById('petitionForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const nickname = document.getElementById('nickname').value;
+                const email = document.getElementById('email').value;
+                const message = document.getElementById('message').value;
+                const emailError = document.getElementById('emailError');
+
+                // Проверка email
+                if (!isValidEmail(email)) {
+                    emailError.textContent = 'Пожалуйста, введите действительный email';
+                    return;
+                } else {
+                    emailError.textContent = '';
+                }
+
+                const date = new Date().toLocaleString('ru-RU');
+                const petition = { nickname, email, message, date };
+
+                try {
+                    await push(ref(database, 'petitions'), petition);
+                    alert('Петиция успешно отправлена!');
+                    this.reset();
+                } catch (error) {
+                    console.error('Ошибка при отправке петиции:', error);
+                    alert('Ошибка при отправке петиции: ' + error.message);
+                }
+            });
+
+            // Отображение петиций
+            function displayPetitions() {
+                const petitionList = document.getElementById('petitionList');
+                petitionList.innerHTML = '';
+
+                try {
+                    onValue(ref(database, 'petitions'), (snapshot) => {
+                        petitionList.innerHTML = '';
+                        const petitions = snapshot.val();
+
+                        if (!petitions) {
+                            petitionList.innerHTML = '<p>Петиций пока нет.</p>';
+                            return;
+                        }
+
+                        Object.values(petitions).forEach(petition => {
+                            const petitionItem = document.createElement('div');
+                            petitionItem.classList.add('petition-item');
+                            petitionItem.innerHTML = `
+                                <strong>${petition.nickname}</strong> (${petition.email}, ${petition.date})<br>
+                                ${petition.message}
+                            `;
+                            petitionList.appendChild(petitionItem);
+                        });
+                    }, {
+                        onlyOnce: false
+                    });
+                } catch (error) {
+                    console.error('Ошибка загрузки петиций:', error);
+                    petitionList.innerHTML = '<p>Ошибка загрузки петиций: ' + error.message + '</p>';
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка инициализации Firebase:', error);
+            alert('Ошибка инициализации Firebase: ' + error.message);
+        }
+    </script>
+</body>
+</html>
